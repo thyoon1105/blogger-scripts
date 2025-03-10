@@ -1,81 +1,117 @@
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('Script loaded successfully'); // 로드 확인
-  var pagerLink = document.querySelector('#blog-pager .blog-pager-older-link');
-  var initialPosts = Array.from(document.querySelectorAll('.blog-post.hentry')); // 초기 포스트 배열로 변환
+function initPager() {
+  console.log('Script loaded successfully');
 
-  if (pagerLink) {
-    pagerLink.addEventListener('click', function(e) {
-      console.log('Pager link clicked'); // 클릭 확인
-      fetchAndLoadAllPosts(this.href, initialPosts);
-      e.preventDefault(); // 기본 링크 동작 방지
+  // /search 페이지에서 섹션 숨김
+  if (window.location.pathname.startsWith('/search')) {
+    const sectionsToHide = [
+      '#intro-wrap',
+      '#intro-author-wrap',
+      '#intro-services-wrap',
+      '#testimonial-wrap'
+    ];
+    sectionsToHide.forEach(selector => {
+      const section = document.querySelector(selector);
+      if (section) {
+        section.style.display = 'none';
+        console.log(`Hid section on /search: ${selector}`);
+      }
     });
-  } else {
-    console.error('Pager link not found');
+
+    const contentWrapper = document.querySelector('#content-wrapper');
+    if (contentWrapper) {
+      contentWrapper.style.display = 'block';
+      console.log('Content wrapper displayed on /search');
+    }
   }
 
-  function fetchAndLoadAllPosts(url, initialPosts) {
-    console.log('Fetching URL:', url); // fetch URL 확인
-    fetch(url)
-      .then(response => {
-        console.log('Fetch response status:', response.status); // 상태 확인
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        return response.text();
-      })
-      .then(html => {
-        console.log('Fetch response received'); // 응답 확인
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        const newPosts = Array.from(doc.querySelectorAll('.blog-post.hentry')); // 새 포스트 배열로 변환
-        console.log('New Posts found:', newPosts.length); // 새 포스트 수 확인
+  // "More Listings" 링크 감지 함수
+  function attachPagerListener() {
+    const pagerLink = document.querySelector('#blog-pager .blog-pager-older-link') || document.querySelector('a.blog-pager-older-link');
+    if (pagerLink && !pagerLink.dataset.listenerAttached) {
+      console.log('Pager link found:', pagerLink);
 
-        // 초기 포스트와 새 포스트 통합 (중복 제거)
-        const allPostsSet = new Set([...initialPosts, ...newPosts]);
-        let allPosts = Array.from(allPostsSet);
+      // 동적으로 href 설정
+      let baseUrl = window.location.pathname.startsWith('/search') ? window.location.pathname : '/';
+      let updatedMax = '';
+      const lastPost = document.querySelector('.blog-posts .post:last-child .post-date.published');
+      if (lastPost) {
+        updatedMax = lastPost.getAttribute('datetime') || lastPost.textContent.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{2}:\d{2}/)?.[0];
+      }
+      if (!updatedMax) {
+        console.warn('Could not determine last post timestamp, using current date');
+        updatedMax = new Date().toISOString();
+      }
+      const updatedUrl = `${baseUrl}?updated-max=${updatedMax}&max-results=9999`;
+      pagerLink.href = updatedUrl;
+      console.log('Set pager link href:', updatedUrl);
 
-        // 디버깅: allPosts와 포스트 수 확인
-        console.log('All Posts:', allPosts);
-        console.log('Total Posts:', allPosts.length);
-
-        // 타임스탬프 기반으로 최신순 정렬
-        allPosts = allPosts.sort((a, b) => {
-          // 다양한 날짜 태그 시도
-          const dateAElement = a.querySelector('time[datetime]') || a.querySelector('.date') || a.querySelector('.post-meta time') || a.querySelector('.published');
-          const dateBElement = b.querySelector('time[datetime]') || b.querySelector('.date') || b.querySelector('.post-meta time') || b.querySelector('.published');
-          
-          const dateA = dateAElement 
-            ? new Date(dateAElement.getAttribute('datetime') || dateAElement.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0])
-            : new Date(0);
-          const dateB = dateBElement 
-            ? new Date(dateBElement.getAttribute('datetime') || dateBElement.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0])
-            : new Date(0);
-
-          console.log('Date A:', dateA, 'Element:', dateAElement?.outerHTML, 'Date B:', dateB, 'Element:', dateBElement?.outerHTML);
-          return dateB - dateA; // 최신순 정렬
-        });
-
-        const postsToShow = allPosts.length > 5 ? allPosts.slice(0, -5) : allPosts;
-        console.log('Posts to Show:', postsToShow);
-
-        const container = document.querySelector('.blog-posts.hfeed');
-        if (!container) {
-          throw new Error('Container .blog-posts.hfeed not found');
-        }
-        container.innerHTML = '';
-
-        postsToShow.forEach(post => {
-          container.appendChild(post.cloneNode(true));
-        });
-
-        const pager = document.getElementById('blog-pager');
-        if (pager) {
-          pager.style.display = 'none';
-        }
-      })
-      .catch(error => {
-        console.error('Error fetching posts:', error);
-        alert('포스트를 로드하는 데 실패했습니다. 다시 시도해 주세요.');
+      pagerLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        console.log('Pager link clicked:', this.href);
+        window.location.href = updatedUrl;
       });
+      pagerLink.dataset.listenerAttached = 'true'; // 중복 리스너 방지
+    } else if (!pagerLink) {
+      console.warn('Pager link not found yet');
+    }
   }
-});
+
+  // 초기 실행
+  attachPagerListener();
+
+  // DOM 변경 감지
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach(() => {
+      attachPagerListener();
+    });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // /search 페이지에서 포스트 처리
+  if (window.location.pathname.startsWith('/search')) {
+    const allPosts = Array.from(document.querySelectorAll('.blog-post.hentry.index-post')).map(post => ({
+      element: post,
+      date: post.querySelector('.post-date.published')?.getAttribute('datetime') || 
+            post.querySelector('.post-date.published')?.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0],
+      id: post.querySelector('h3 a')?.getAttribute('href') || post.dataset.postId
+    }));
+    console.log('All Posts fetched:', allPosts.length, allPosts);
+
+    // 날짜 기반 최신순 정렬
+    allPosts.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      console.log('Date A:', dateA, 'Date B:', dateB);
+      return dateB - dateA;
+    });
+
+    // 오래된 5개 제외 (최소 1개는 남김)
+    const postsToShow = allPosts.length > 5 ? allPosts.slice(0, -5) : allPosts;
+    console.log('Posts to Show:', postsToShow.length, postsToShow);
+
+    const targetContainer = document.querySelector('.blog-posts.hfeed.index-post-wrap') || document.querySelector('.blog-posts');
+    if (!targetContainer) {
+      console.error('No valid container found for appending posts');
+      return;
+    }
+
+    // 기존 포스트 제거 후 최신 포스트 추가
+    targetContainer.innerHTML = '';
+    postsToShow.forEach(post => {
+      targetContainer.appendChild(post.element.cloneNode(true));
+    });
+
+    // Pager 숨김
+    const pager = document.getElementById('blog-pager');
+    if (pager) {
+      pager.style.display = 'none';
+    }
+  }
+}
+
+// DOM 로드 후 실행
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPager);
+} else {
+  initPager();
+}
