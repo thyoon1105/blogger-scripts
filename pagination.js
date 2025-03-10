@@ -2,7 +2,7 @@ function initPager() {
   console.log('Script loaded successfully');
 
   // /search 페이지에서 섹션 숨김
-  if (window.location.pathname.startsWith('/search')) {
+  if (window.location.pathname.includes('/search')) {
     const sectionsToHide = [
       '#intro-wrap',
       '#intro-author-wrap',
@@ -31,24 +31,23 @@ function initPager() {
       console.log('Pager link found:', pagerLink);
 
       // 동적으로 href 설정
-      let baseUrl = window.location.pathname.startsWith('/search') ? window.location.pathname : '/';
+      let baseUrl = window.location.pathname.includes('/search') ? window.location.pathname : '/';
       let updatedMax = '';
-      const lastPost = document.querySelector('.blog-posts .post:last-child .post-date.published');
+      const lastPost = document.querySelector('.blog-posts .post-date.published') || document.querySelector('.post .post-date.published');
       if (lastPost) {
-        updatedMax = lastPost.getAttribute('datetime') || lastPost.textContent.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{2}:\d{2}/)?.[0];
-      }
-      if (!updatedMax) {
+        updatedMax = lastPost.getAttribute('datetime') || lastPost.textContent.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{2}:\d{2}/)?.[0] || new Date().toISOString();
+      } else {
         console.warn('Could not determine last post timestamp, using current date');
         updatedMax = new Date().toISOString();
       }
-      const updatedUrl = `${baseUrl}?updated-max=${updatedMax}&max-results=9999`;
+      const updatedUrl = `${baseUrl}?updated-max=${encodeURIComponent(updatedMax)}&max-results=9999`;
       pagerLink.href = updatedUrl;
       console.log('Set pager link href:', updatedUrl);
 
       pagerLink.addEventListener('click', function(e) {
         e.preventDefault();
         console.log('Pager link clicked:', this.href);
-        window.location.href = updatedUrl;
+        window.location.href = this.href; // 현재 href로 이동
       });
       pagerLink.dataset.listenerAttached = 'true'; // 중복 리스너 방지
     } else if (!pagerLink) {
@@ -68,43 +67,48 @@ function initPager() {
   observer.observe(document.body, { childList: true, subtree: true });
 
   // /search 페이지에서 포스트 처리
-  if (window.location.pathname.startsWith('/search')) {
-    const allPosts = Array.from(document.querySelectorAll('.blog-post.hentry.index-post')).map(post => ({
+  if (window.location.pathname.includes('/search')) {
+    const allPosts = Array.from(document.querySelectorAll('.blog-post.hentry.index-post, .post.hentry')).map(post => ({
       element: post,
       date: post.querySelector('.post-date.published')?.getAttribute('datetime') || 
-            post.querySelector('.post-date.published')?.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0],
+            post.querySelector('.post-date.published')?.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0] || 
+            post.querySelector('time')?.getAttribute('datetime'),
       id: post.querySelector('h3 a')?.getAttribute('href') || post.dataset.postId
     }));
     console.log('All Posts fetched:', allPosts.length, allPosts);
 
-    // 날짜 기반 최신순 정렬
-    allPosts.sort((a, b) => {
-      const dateA = a.date ? new Date(a.date) : new Date(0);
-      const dateB = b.date ? new Date(b.date) : new Date(0);
-      console.log('Date A:', dateA, 'Date B:', dateB);
-      return dateB - dateA;
-    });
+    if (allPosts.length > 0) {
+      // 날짜 기반 최신순 정렬
+      allPosts.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date) : new Date(0);
+        const dateB = b.date ? new Date(b.date) : new Date(0);
+        console.log('Date A:', dateA, 'Date B:', dateB);
+        return dateB - dateA;
+      });
 
-    // 오래된 5개 제외 (최소 1개는 남김)
-    const postsToShow = allPosts.length > 5 ? allPosts.slice(0, -5) : allPosts;
-    console.log('Posts to Show:', postsToShow.length, postsToShow);
+      // 오래된 5개 제외 (최소 1개는 남김)
+      const postsToShow = allPosts.length > 5 ? allPosts.slice(0, -5) : allPosts;
+      console.log('Posts to Show:', postsToShow.length, postsToShow);
 
-    const targetContainer = document.querySelector('.blog-posts.hfeed.index-post-wrap') || document.querySelector('.blog-posts');
-    if (!targetContainer) {
-      console.error('No valid container found for appending posts');
-      return;
-    }
+      const targetContainer = document.querySelector('.blog-posts.hfeed.index-post-wrap') || document.querySelector('.blog-posts');
+      if (targetContainer) {
+        // 기존 포스트 제거 후 최신 포스트 추가
+        targetContainer.innerHTML = '';
+        postsToShow.forEach(post => {
+          targetContainer.appendChild(post.element.cloneNode(true));
+        });
 
-    // 기존 포스트 제거 후 최신 포스트 추가
-    targetContainer.innerHTML = '';
-    postsToShow.forEach(post => {
-      targetContainer.appendChild(post.element.cloneNode(true));
-    });
-
-    // Pager 숨김
-    const pager = document.getElementById('blog-pager');
-    if (pager) {
-      pager.style.display = 'none';
+        // Pager 숨김
+        const pager = document.getElementById('blog-pager');
+        if (pager) {
+          pager.style.display = 'none';
+          console.log('Pager hidden');
+        }
+      } else {
+        console.error('No valid container found for appending posts');
+      }
+    } else {
+      console.warn('No posts found to process');
     }
   }
 }
