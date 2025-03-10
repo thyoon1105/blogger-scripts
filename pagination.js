@@ -1,15 +1,18 @@
 document.addEventListener('DOMContentLoaded', function() {
+  console.log('Script loaded successfully'); // 로드 확인
   var pagerLink = document.querySelector('#blog-pager .blog-pager-older-link');
   var initialPosts = Array.from(document.querySelectorAll('.blog-post.hentry')); // 초기 포스트 배열로 변환
 
   if (pagerLink) {
     pagerLink.addEventListener('click', function(e) {
+      console.log('Pager link clicked'); // 클릭 확인
       fetchAndLoadAllPosts(this.href, initialPosts);
       e.preventDefault(); // 기본 링크 동작 방지
     });
   }
 
   function fetchAndLoadAllPosts(url, initialPosts) {
+    console.log('Fetching URL:', url); // fetch URL 확인
     fetch(url)
       .then(response => {
         if (!response.ok) {
@@ -18,9 +21,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return response.text();
       })
       .then(html => {
+        console.log('Fetch response received'); // 응답 확인
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
         const newPosts = Array.from(doc.querySelectorAll('.blog-post.hentry')); // 새 포스트 배열로 변환
+        console.log('New Posts found:', newPosts.length); // 새 포스트 수 확인
 
         // 초기 포스트와 새 포스트 통합 (중복 제거)
         const allPostsSet = new Set([...initialPosts, ...newPosts]);
@@ -30,11 +35,11 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('All Posts:', allPosts);
         console.log('Total Posts:', allPosts.length);
 
-        // 타임스탬프 기반으로 최신순 정렬
+        // 타임스탬프 기반으로 최신순 정렬 (포스트 구조에 맞게 수정)
         allPosts = allPosts.sort((a, b) => {
-          // 포스트에서 날짜 추출 (post-date 클래스의 datetime 속성 사용)
-          const dateAElement = a.querySelector('.post-date');
-          const dateBElement = b.querySelector('.post-date');
+          // 포스트에서 날짜 추출 (다양한 태그 시도)
+          const dateAElement = a.querySelector('time[datetime]') || a.querySelector('.date') || a.querySelector('.post-meta time');
+          const dateBElement = b.querySelector('time[datetime]') || b.querySelector('.date') || b.querySelector('.post-meta time');
           
           const dateA = dateAElement 
             ? new Date(dateAElement.getAttribute('datetime') || dateAElement.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0])
@@ -43,7 +48,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ? new Date(dateBElement.getAttribute('datetime') || dateBElement.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0])
             : new Date(0);
 
-          console.log('Date A:', dateA, 'Date B:', dateB); // 날짜 디버깅
+          console.log('Date A:', dateA, 'Element:', dateAElement, 'Date B:', dateB, 'Element:', dateBElement); // 디버깅
           return dateB - dateA; // 최신순 정렬
         });
 
