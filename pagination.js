@@ -9,12 +9,15 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchAndLoadAllPosts(this.href, initialPosts);
       e.preventDefault(); // 기본 링크 동작 방지
     });
+  } else {
+    console.error('Pager link not found');
   }
 
   function fetchAndLoadAllPosts(url, initialPosts) {
     console.log('Fetching URL:', url); // fetch URL 확인
     fetch(url)
       .then(response => {
+        console.log('Fetch response status:', response.status); // 상태 확인
         if (!response.ok) {
           throw new Error(`HTTP error! Status: ${response.status}`);
         }
@@ -35,42 +38,36 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('All Posts:', allPosts);
         console.log('Total Posts:', allPosts.length);
 
-        // 타임스탬프 기반으로 최신순 정렬 (포스트 구조에 맞게 수정)
+        // 타임스탬프 기반으로 최신순 정렬
         allPosts = allPosts.sort((a, b) => {
-          // 포스트에서 날짜 추출 (다양한 태그 시도)
-          const dateAElement = a.querySelector('time[datetime]') || a.querySelector('.date') || a.querySelector('.post-meta time');
-          const dateBElement = b.querySelector('time[datetime]') || b.querySelector('.date') || b.querySelector('.post-meta time');
+          // 다양한 날짜 태그 시도
+          const dateAElement = a.querySelector('time[datetime]') || a.querySelector('.date') || a.querySelector('.post-meta time') || a.querySelector('.published');
+          const dateBElement = b.querySelector('time[datetime]') || b.querySelector('.date') || b.querySelector('.post-meta time') || b.querySelector('.published');
           
           const dateA = dateAElement 
             ? new Date(dateAElement.getAttribute('datetime') || dateAElement.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0])
-            : new Date(0); // 날짜 없으면 최소값
+            : new Date(0);
           const dateB = dateBElement 
             ? new Date(dateBElement.getAttribute('datetime') || dateBElement.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0])
             : new Date(0);
 
-          console.log('Date A:', dateA, 'Element:', dateAElement, 'Date B:', dateB, 'Element:', dateBElement); // 디버깅
+          console.log('Date A:', dateA, 'Element:', dateAElement?.outerHTML, 'Date B:', dateB, 'Element:', dateBElement?.outerHTML);
           return dateB - dateA; // 최신순 정렬
         });
 
-        // 포스트가 5개 이상일 경우 가장 오래된 5개를 제외
         const postsToShow = allPosts.length > 5 ? allPosts.slice(0, -5) : allPosts;
-
-        // 디버깅: 표시할 포스트 확인
         console.log('Posts to Show:', postsToShow);
 
-        // 기존 포스트 컨테이너 초기화
         const container = document.querySelector('.blog-posts.hfeed');
         if (!container) {
           throw new Error('Container .blog-posts.hfeed not found');
         }
         container.innerHTML = '';
 
-        // 포스트 추가
         postsToShow.forEach(post => {
           container.appendChild(post.cloneNode(true));
         });
 
-        // 페이저 숨김
         const pager = document.getElementById('blog-pager');
         if (pager) {
           pager.style.display = 'none';
