@@ -33,9 +33,11 @@ function initPager() {
       // 동적으로 href 설정
       let baseUrl = window.location.pathname.includes('/search') ? window.location.pathname : '/';
       let updatedMax = '';
-      const lastPost = document.querySelector('.blog-posts .post-date.published') || document.querySelector('.post .post-date.published');
-      if (lastPost) {
-        updatedMax = lastPost.getAttribute('datetime') || lastPost.textContent.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-\d{2}:\d{2}/)?.[0] || new Date().toISOString();
+      const posts = document.querySelectorAll('.blog-post.hentry.index-post, .post.hentry');
+      if (posts.length > 0) {
+        const lastPost = posts[posts.length - 1];
+        const dateElement = lastPost.querySelector('.post-date.published, time');
+        updatedMax = dateElement?.getAttribute('datetime') || dateElement?.textContent.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*?(Z|[-+]\d{2}:\d{2})/)?.[0] || new Date().toISOString();
       } else {
         console.warn('Could not determine last post timestamp, using current date');
         updatedMax = new Date().toISOString();
@@ -47,7 +49,7 @@ function initPager() {
       pagerLink.addEventListener('click', function(e) {
         e.preventDefault();
         console.log('Pager link clicked:', this.href);
-        window.location.href = this.href; // 현재 href로 이동
+        window.location.href = this.href;
       });
       pagerLink.dataset.listenerAttached = 'true'; // 중복 리스너 방지
     } else if (!pagerLink) {
@@ -68,13 +70,14 @@ function initPager() {
 
   // /search 페이지에서 포스트 처리
   if (window.location.pathname.includes('/search')) {
-    const allPosts = Array.from(document.querySelectorAll('.blog-post.hentry.index-post, .post.hentry')).map(post => ({
-      element: post,
-      date: post.querySelector('.post-date.published')?.getAttribute('datetime') || 
-            post.querySelector('.post-date.published')?.textContent.match(/\d{4}-\d{2}-\d{2}/)?.[0] || 
-            post.querySelector('time')?.getAttribute('datetime'),
-      id: post.querySelector('h3 a')?.getAttribute('href') || post.dataset.postId
-    }));
+    const allPosts = Array.from(document.querySelectorAll('.blog-post.hentry.index-post, .post.hentry')).map(post => {
+      const dateElement = post.querySelector('.post-date.published, time');
+      return {
+        element: post,
+        date: dateElement?.getAttribute('datetime') || dateElement?.textContent.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*?(Z|[-+]\d{2}:\d{2})/)?.[0] || post.querySelector('time')?.getAttribute('datetime'),
+        id: post.querySelector('h3 a')?.getAttribute('href') || post.dataset.postId
+      };
+    });
     console.log('All Posts fetched:', allPosts.length, allPosts);
 
     if (allPosts.length > 0) {
@@ -95,7 +98,8 @@ function initPager() {
         // 기존 포스트 제거 후 최신 포스트 추가
         targetContainer.innerHTML = '';
         postsToShow.forEach(post => {
-          targetContainer.appendChild(post.element.cloneNode(true));
+          const clonedPost = post.element.cloneNode(true);
+          targetContainer.appendChild(clonedPost);
         });
 
         // Pager 숨김
